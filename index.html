@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Request with Fetch</title>
+  <style>
+    code{
+      background-color: #eee;
+      padding: 2px;
+    }
+    code[class^="language"]{
+      color: white;
+      background: black;
+      display: block;
+      padding: 6px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+  </style>
+  <script src="https://cdn.tailwindcss.com"></script>  
+</head>
+<body>
+  <form class="flex w-full p-6" id="form">
+    <textarea type="text" placeholder="Ask your question..." id="question" class="border-[1px] border-black w-[80%] p-2"></textarea>
+    <button id="fetch-button" type="submit" class="bg-black text-white p-4 w-[20%]">Ask AI</button>
+  </form>
+  <pre id="response" class="text-wrap p-4"></pre>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script>
+    document.getElementById('form').addEventListener('submit', () => {
+    event.preventDefault()
+    question = document.getElementById('question').value;
+    console.log(question)
+    const apiKey = 'AIzaSyAaoSd5DTETu7I5A-HuqQOT7tRafPuAk6U';
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+
+    const requestData = {
+      contents: [
+        {
+          parts: [
+            { text: question }
+          ]
+        }
+      ]
+    };
+
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData),
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          const textContent = data.candidates[0].content.parts[0].text;
+          document.getElementById('response').innerHTML = marked.parse(textContent);
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          document.getElementById('response').textContent = `Error: ${error.message}`;
+        });
+    });
+  </script>
+</body>
+</html>
