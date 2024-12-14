@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>API Request with Fetch</title>
+  <title>Text and Image Processing</title>
   <style>
-    code{
+    code {
       background-color: #eee;
       padding: 2px;
     }
-    code[class^="language"]{
+    code[class^="language"] {
       color: white;
       background: black;
       display: block;
@@ -21,52 +21,112 @@
   <script src="https://cdn.tailwindcss.com"></script>  
 </head>
 <body>
-  <form class="flex w-full p-6" id="form">
-    <textarea type="text" placeholder="Ask your question..." id="question" class="border-[1px] border-black w-[80%] p-2"></textarea>
-    <button id="fetch-button" type="submit" class="bg-black text-white p-4 w-[20%]">Ask AI</button>
+  <form class="flex flex-col w-full p-6 space-y-4" id="form">
+    <textarea type="text" placeholder="Ask your question..." id="question" class="border-[1px] border-black w-full p-2"></textarea>
+    <input type="file" id="image" accept="image/*" class="border-[1px] border-black p-2">
+    <button id="fetch-button" type="submit" class="bg-black text-white p-4">Ask AI</button>
   </form>
   <pre id="response" class="text-wrap p-4"></pre>
+
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script>
-    document.getElementById('form').addEventListener('submit', () => {
-    event.preventDefault()
-    question = document.getElementById('question').value;
-    console.log(question)
-    const apiKey = 'AIzaSyAaoSd5DTETu7I5A-HuqQOT7tRafPuAk6U';
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    document.getElementById('form').addEventListener('submit', async (event) => {
+      event.preventDefault();
 
-    const requestData = {
-      contents: [
-        {
-          parts: [
-            { text: question }
-          ]
-        }
-      ]
-    };
+      const question = document.getElementById('question').value;
+      const imageFile = document.getElementById('image').files[0];
+      const responseElement = document.getElementById('response');
+      
+      // Reset the response area
+      responseElement.textContent = "Processing...";
 
-      fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestData),
-      })
-        .then(response => {
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+      try {
+        let imageAnalysis = '';
+        
+        if (imageFile) {
+          // Convert image to base64 or send it directly to an image-processing API
+          const visionApiKey = 'YOUR_GOOGLE_VISION_API_KEY';
+          const visionUrl = `https://vision.googleapis.com/v1/images:annotate?key=${visionApiKey}`;
+          
+          // Convert image to base64
+          const base64Image = await convertToBase64(imageFile);
+
+          const visionRequestData = {
+            requests: [
+              {
+                image: { content: base64Image },
+                features: [{ type: "LABEL_DETECTION" }, { type: "TEXT_DETECTION" }]
+              }
+            ]
+          };
+
+          // Fetch image analysis results
+          const visionResponse = await fetch(visionUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(visionRequestData),
+          });
+
+          if (!visionResponse.ok) {
+            throw new Error(`Vision API error: ${visionResponse.status}`);
           }
-          return response.json();
-        })
-        .then(data => {
-          const textContent = data.candidates[0].content.parts[0].text;
-          document.getElementById('response').innerHTML = marked.parse(textContent);
-        })
-        .catch(error => {
-          console.error('Error:', error);
-          document.getElementById('response').textContent = `Error: ${error.message}`;
+
+          const visionData = await visionResponse.json();
+          imageAnalysis = parseVisionResponse(visionData); // Extract insights (e.g., text or labels)
+        }
+
+        // Prepare request data for Gemini-1.5 API
+        const apiKey = 'AIzaSyAaoSd5DTETu7I5A-HuqQOT7tRafPuAk6U';
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+
+        const requestData = {
+          contents: [
+            {
+              parts: [
+                { text: question },
+                { text: imageAnalysis }
+              ]
+            }
+          ]
+        };
+
+        // Fetch response from Gemini-1.5 API
+        const geminiResponse = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestData),
         });
+
+        if (!geminiResponse.ok) {
+          throw new Error(`Gemini API error: ${geminiResponse.status}`);
+        }
+
+        const geminiData = await geminiResponse.json();
+        const textContent = geminiData.candidates[0].content.parts[0].text;
+        responseElement.innerHTML = marked.parse(textContent);
+
+      } catch (error) {
+        console.error('Error:', error);
+        responseElement.textContent = `Error: ${error.message}`;
+      }
     });
+
+    // Helper function to convert an image to Base64
+    function convertToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]); // Remove metadata prefix
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    // Helper function to parse Vision API response
+    function parseVisionResponse(data) {
+      const labels = data.responses[0]?.labelAnnotations?.map(label => label.description).join(', ') || '';
+      const detectedText = data.responses[0]?.fullTextAnnotation?.text || '';
+      return `Image Analysis:\nLabels: ${labels}\nText: ${detectedText}`;
+    }
   </script>
 </body>
 </html>
